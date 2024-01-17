@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 #![warn(clippy::style)]
 #![allow(clippy::needless_return)]
+
 use rand::Rng;
 
-const NUM_CANDIDATES: usize = 4;
+const NUM_CANDIDATES: usize = 5;
 const NUM_BALLOTS: usize = 100;
 
 enum Ballot {
@@ -13,11 +14,17 @@ enum Ballot {
 
 impl Ballot {
     const fn as_plurality(&self) -> Self {
-        match *self {
-            Self::Plurality(choice) => return Self::Plurality(choice),
-            Self::Ranked(choices) => return Self::Plurality(choices[0]),
+        return match *self {
+            Self::Plurality(choice) => Self::Plurality(choice),
+            Self::Ranked(choices) => Self::Plurality(choices[0]),
         }
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+struct Hash {
+    key: usize,
+    value: usize,
 }
 
 enum ElectionResult {
@@ -30,12 +37,6 @@ enum MinOrMax {
     Max,
 }
 
-#[derive(Copy, Clone, Debug)]
-struct Hash {
-    key: usize,
-    value: usize,
-}
-
 fn create_ballot_plurality() -> Ballot {
     let mut rng = rand::thread_rng();
     let choice: usize = rng.gen_range(0..NUM_CANDIDATES);
@@ -43,10 +44,10 @@ fn create_ballot_plurality() -> Ballot {
     return Ballot::Plurality(choice);
 }
 
-fn simulate_plurality(ballots: &[Ballot]) -> ElectionResult {
+fn simulate_plurality(ballots: &[Ballot], num_candidates: usize) -> ElectionResult {
     assert!(!ballots.is_empty(), "ballot must have a size");
 
-    let mut candidates_votes: Vec<usize> = vec![0; NUM_CANDIDATES];
+    let mut candidates_votes: Vec<usize> = vec![0; num_candidates];
 
     for ballot in ballots {
         if let Ballot::Plurality(choice) = ballot {
@@ -80,30 +81,30 @@ fn create_ballot_ranked() -> Ballot {
     return Ballot::Ranked(choices);
 }
 
-fn simulate_ranked(ballots: &[Ballot]) -> ElectionResult {
+fn simulate_ranked(ballots: &[Ballot], num_candidates: usize) -> ElectionResult {
     let win_threshold = NUM_BALLOTS / 2;
 
-    let mut candidates_votes: Vec<Hash> = vec![Hash { key: 0, value: 0 }; NUM_CANDIDATES];
+    let mut candidates_votes: Vec<Hash> = vec![Hash { key: 0, value: 0 }; num_candidates];
 
     for (i, candidate) in candidates_votes.iter_mut().enumerate() {
         candidate.key = i;
     }
 
     let mut top_candidate_index = 0;
+    let mut values_only: Vec<usize>;
 
     while candidates_votes[top_candidate_index].value < win_threshold {
         count_votes_ranked(candidates_votes.as_mut_slice(), ballots);
-
         println!("{candidates_votes:?}");
 
-        let mut values_only: Vec<usize> = candidates_votes
+        values_only = candidates_votes
             .iter()
             .map(|&Hash { value: val, .. }| val)
             .collect();
 
         let losers = extrema_indeces(&values_only, MinOrMax::Min);
 
-        if losers.len() >= candidates_votes.len() {
+        if losers.len() == candidates_votes.len() {
             break;
         }
 
@@ -125,7 +126,7 @@ fn simulate_ranked(ballots: &[Ballot]) -> ElectionResult {
 
     println!("final: {candidates_votes:?}");
 
-    let values_only: Vec<usize> = candidates_votes
+    values_only = candidates_votes
         .iter()
         .map(|&Hash { value: val, .. }| val)
         .collect();
@@ -152,8 +153,8 @@ fn extrema_indeces(list: &[usize], min_or_max: MinOrMax) -> Vec<usize> {
 
     return list
         .iter()
-        .filter(|&item| item == extremum)
         .enumerate()
+        .filter(|(_, item)| *item == extremum)
         .map(|(i, _)| i)
         .collect();
 }
@@ -204,7 +205,7 @@ fn main() {
         .map(Ballot::as_plurality)
         .collect();
 
-    let plurality_result = simulate_plurality(&plurality_ballots);
+    let plurality_result = simulate_plurality(&plurality_ballots, NUM_CANDIDATES);
 
     match plurality_result {
         ElectionResult::SingleWinner(winner) => println!("{winner} won\n"),
@@ -219,7 +220,7 @@ fn main() {
         }
     }
 
-    let ranked_result = simulate_ranked(&ranked_ballots);
+    let ranked_result = simulate_ranked(&ranked_ballots, NUM_CANDIDATES);
 
     match ranked_result {
         ElectionResult::SingleWinner(winner) => println!("{winner} won"),
